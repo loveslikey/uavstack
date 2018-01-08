@@ -20,21 +20,6 @@
 
 package com.creditease.agent.feature.monitoragent.datacatch.jmx;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javax.management.Attribute;
-import javax.management.MBeanServerConnection;
-import javax.management.ObjectInstance;
-import javax.management.ObjectName;
-
 import com.creditease.agent.feature.monitoragent.AppServerProfileDataCatchWorker;
 import com.creditease.agent.feature.monitoragent.datacatch.BaseJMXMonitorDataCatchWorker;
 import com.creditease.agent.feature.monitoragent.detect.BaseDetector;
@@ -42,6 +27,13 @@ import com.creditease.agent.helpers.JSONHelper;
 import com.creditease.agent.helpers.StringHelper;
 import com.creditease.agent.helpers.jvmtool.JVMAgentInfo;
 import com.creditease.agent.monitor.api.MonitorDataFrame;
+
+import javax.management.Attribute;
+import javax.management.MBeanServerConnection;
+import javax.management.ObjectInstance;
+import javax.management.ObjectName;
+import java.io.IOException;
+import java.util.*;
 
 public class JMXAppServerMonitorDataCatchWorker extends BaseJMXMonitorDataCatchWorker {
 
@@ -208,6 +200,11 @@ public class JMXAppServerMonitorDataCatchWorker extends BaseJMXMonitorDataCatchW
                     if (webapp.isEmpty()) {
                         continue;
                     }
+                    //add By qinyanpei
+                    //add By qinyanpei
+                    webapp.put("runtimeName",this.appServerInfo.getId());
+                    webapp.put("jvmArgs",JSONHelper.toString(appServerInfo.getAgentProperties().getProperty("sun.jvm.args")));
+
 
                     /**
                      * 【1】AppGroup
