@@ -208,6 +208,11 @@ public class JMXAppServerMonitorDataCatchWorker extends BaseJMXMonitorDataCatchW
                     if (webapp.isEmpty()) {
                         continue;
                     }
+                    //add By qinyanpei
+                    //add By qinyanpei
+                    webapp.put("runtimeName",this.appServerInfo.getId());
+                    webapp.put("jvmArgs",JSONHelper.toString(appServerInfo.getAgentProperties().getProperty("sun.jvm.args")));
+
 
                     /**
                      * 【1】AppGroup

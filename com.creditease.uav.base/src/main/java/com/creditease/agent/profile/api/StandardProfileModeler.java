@@ -152,6 +152,9 @@ public class StandardProfileModeler extends AbstractBaseAction {
             appProfile.put("webapproot", appRoot);
             appProfile.put("appurl", appurl);
             appProfile.put("mofmeta", mofMeta);
+            //add By qinyanpei
+            appProfile.put("runtimeName",(String)values.get("runtimeName"));
+            appProfile.put("jvmArgs",(String)values.get("jvmArgs"));
 
             this.listener.onAppProfileMetaCreate(context, mdf, appid, appurl, appgroup, appProfile);
 
