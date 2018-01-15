@@ -382,7 +382,7 @@ public class StandardProfileModeler extends AbstractBaseAction {
                     Integer port = (Integer) pAttrs.get("port");
                     String path = (String) pAttrs.get("path");
 
-                    path = (StringHelper.isEmpty(path)) ? servcls : path;
+                    path = (StringHelper.isEmpty(path)) ? servcls : path + "/" + servcls;
 
                     String url = getDubboURL(ip, group, version, method, port, protocol, path);
 
@@ -399,13 +399,13 @@ public class StandardProfileModeler extends AbstractBaseAction {
 
         requestURL.append(protocol).append("://").append(ip).append(":").append(localPort);
 
-        if (group != null) {
+        if (!StringHelper.isEmpty(group)) {
             requestURL.append(":").append(group);
         }
 
         requestURL.append("/").append(path);
 
-        if (version != null) {
+        if (!StringHelper.isEmpty(version)) {
             requestURL.append(".").append(version);
         }
 
@@ -499,10 +499,10 @@ public class StandardProfileModeler extends AbstractBaseAction {
             pi.put("cpt.jaxws", LAZY_INFO);
         }
 
-        String jaxwsBaseURL = serviceServlets.get("jaxws");
+        String jaxwsBaseURL = getBaseURL(serviceServlets, "jaxws");
 
         // get jaxws URLs
-        getJAXWSURLs(compServices, jaxws, serviceServlets, appurl);
+        getJAXWSURLs(compServices, jaxws, jaxwsBaseURL, appurl);
 
         Map<String, Object> jaxwsProviders = mdf.getElemInstValues(appid, "cpt", "javax.xml.ws.WebServiceProvider");
 
@@ -522,7 +522,7 @@ public class StandardProfileModeler extends AbstractBaseAction {
         }
 
         // get jaxrs urls
-        String jaxrsBaseURL = serviceServlets.get("jaxrs");
+        String jaxrsBaseURL = getBaseURL(serviceServlets, "jaxrs");
 
         getJAXRSURLs(jaxrsBaseURL, compServices, jaxrs);
 
@@ -541,7 +541,7 @@ public class StandardProfileModeler extends AbstractBaseAction {
         }
 
         // get spring mvc urls
-        String springmvcBaseURL = serviceServlets.get("springmvc");
+        String springmvcBaseURL = getBaseURL(serviceServlets, "springmvc");
 
         getSpringMVCURLs(springmvcBaseURL, compServices, springMVC);
 
@@ -567,6 +567,15 @@ public class StandardProfileModeler extends AbstractBaseAction {
             pi.put("cpt.listeners", LAZY_INFO);
 
         }
+
+    }
+
+    /**
+     * get component's BaseURL. if BaseURL is null,use "@" to represent.
+     */
+    private String getBaseURL(Map<String, String> serviceServlets, String compType) {
+
+        return (serviceServlets.get(compType) == null) ? "@" : serviceServlets.get(compType);
 
     }
 
@@ -763,8 +772,12 @@ public class StandardProfileModeler extends AbstractBaseAction {
                 if (extObj == null) {
                     continue;
                 }
-
-                String[] extArr = ((String) extObj).split(",");
+                /**
+                 * in struts2,config extension as "do,action," means url's suffix could be "do" "action" or "".
+                 * "do,action,".split(",") result is ["do","action"], "do,action,".split(",",limitnum) result
+                 * is["do","action",""].
+                 */
+                String[] extArr = ((String) extObj).split(",", 100);
 
                 List<String> extList = Arrays.asList(extArr);
 
@@ -1048,10 +1061,8 @@ public class StandardProfileModeler extends AbstractBaseAction {
      * @param jaxws
      */
     @SuppressWarnings("unchecked")
-    private void getJAXWSURLs(Map<String, Set<String>> compServices, Map<String, Object> jaxws,
-            Map<String, String> serviceServlets, String appurl) {
-
-        String jaxwsBaseUrl = serviceServlets.get("jaxws");
+    private void getJAXWSURLs(Map<String, Set<String>> compServices, Map<String, Object> jaxws, String jaxwsBaseUrl,
+            String appurl) {
 
         for (String compId : jaxws.keySet()) {
 
@@ -1292,6 +1303,10 @@ public class StandardProfileModeler extends AbstractBaseAction {
         if (serviceServlets.containsKey("wink")) {
             serviceServlets.put("jaxrs", serviceServlets.get("wink") + "/");
         }
+        // add dubbo, also a impl of jaxrs
+        else if (serviceServlets.containsKey("dubbo")) {
+            serviceServlets.put("jaxrs", serviceServlets.get("dubbo") + "/");
+        }
         else if (serviceServlets.containsKey("jersey")) {
             serviceServlets.put("jaxrs", serviceServlets.get("jersey") + "/");
         }
@@ -1337,6 +1352,21 @@ public class StandardProfileModeler extends AbstractBaseAction {
         }
         else if (engine.indexOf("jaxws-ri") > -1) {
             serviceServlets.put("jaxws-ri", serviceURL);
+        }
+        else if (engine.indexOf("dubbo") > -1) {
+            serviceServlets.put("dubbo", serviceURL);
+        }
+        else if (engine.indexOf("axis2") > -1) {
+            serviceServlets.put("axis2", serviceURL);
+        }
+        else if (engine.indexOf("xfire") > -1) {
+            serviceServlets.put("xfire", serviceURL);
+        }
+        else if (engine.indexOf("wink") > -1) {
+            serviceServlets.put("wink", serviceURL);
+        }
+        else if (engine.indexOf("hession") > -1) {
+            serviceServlets.put("hession", serviceURL);
         }
     }
 
