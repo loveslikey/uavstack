@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.alibaba.fastjson.JSONArray;
 import com.creditease.agent.helpers.DateTimeHelper;
 import com.creditease.agent.helpers.EncodeHelper;
 import com.creditease.agent.helpers.JSONHelper;
@@ -64,6 +65,8 @@ public class NotifyStrategy {
 
     private List<Condition> condtions;
 
+    private List<String> convergences;
+    
     private String msgTemplate;
 
     private Map<String, String> action = Collections.emptyMap();
@@ -80,7 +83,7 @@ public class NotifyStrategy {
     }
 
     public NotifyStrategy(String name, String scope, List<String> context, Map<String, String> action,
-            List<String> instances, String msgTemplate) {
+            List<String> instances, String msgTemplate, List<String> convergences) {
         this.name = name;
         this.scope = scope;
         if (context != null && context.size() != 0) {
@@ -92,6 +95,7 @@ public class NotifyStrategy {
         if (instances != null && instances.size() != 0) {
             this.instances = instances;
         }
+        this.convergences = convergences;
         this.msgTemplate = msgTemplate;
     }
 
@@ -182,11 +186,12 @@ public class NotifyStrategy {
         List<String> context = (List<String>) m.get("context");
         List<Object> conditions = (List<Object>) m.get("conditions");
         List<String> relations = (List<String>) m.get("relations");
+        List<String> convergences = (List<String>) m.get("convergences");
         Map<String, String> action = (Map<String, String>) m.get("action");
         String msgTemplate = (String) m.get("msgTemplate");
         List<String> instances = (List<String>) m.get("instances");
 
-        NotifyStrategy stra = new NotifyStrategy(name, scope, context, action, instances, msgTemplate);
+        NotifyStrategy stra = new NotifyStrategy(name, scope, context, action, instances, msgTemplate, convergences);
 
         stra.setConditions(conditions, relations);
 
@@ -262,6 +267,11 @@ public class NotifyStrategy {
 
         return condtions;
     }
+    
+    public List<String> getConvergences() {
+        
+        return convergences;
+    }
 
     protected static class Expression {
 
@@ -273,7 +283,9 @@ public class NotifyStrategy {
         private long range = 0;
         private String func;
         private float sampling = 1;
-
+        private String downsample;
+        private Boolean[] weekdayLimit=new Boolean[] {true,true,true,true,true,true,true};
+        
         private Set<String> matchArgExpr = new HashSet<String>();
 
         private long time_from;
@@ -282,7 +294,11 @@ public class NotifyStrategy {
         private int unit;
         private String upperLimit;
         private String lowerLimit;
-
+        private String time_end;
+        private String time_start;
+        private String day_start;
+        private String day_end;
+        
         public Expression(String exprStr) {
             for (String op : OPERATORS) {
                 if (exprStr.contains(op)) {
@@ -322,6 +338,19 @@ public class NotifyStrategy {
             this.time_to = DateTimeHelper
                     .dateFormat(DateTimeHelper.getToday("yyyy-MM-dd") + " " + cond.get("time_to"), "yyyy-MM-dd HH:mm")
                     .getTime();
+            
+            this.time_start=(String) cond.get("time_start");
+            
+            this.time_end= (String) cond.get("time_end");
+            
+            this.day_start=(String) cond.get("day_start");
+            
+            this.day_end= (String) cond.get("day_end");
+            
+            if(cond.containsKey("weekdayLimit")) {
+                ((JSONArray)cond.get("weekdayLimit")).toArray(this.weekdayLimit);
+            }       
+            
             if (cond.get("interval") != null) {
                 long interval = Long.parseLong((String) cond.get("interval"));
                 switch (unit) {
@@ -341,6 +370,7 @@ public class NotifyStrategy {
             this.upperLimit = (String) cond.get("upperLimit");
             this.lowerLimit = (String) cond.get("lowerLimit");
             this.func = (String) cond.get("aggr");
+            this.downsample=(String) cond.get("downsample");
             this.type = Type.TIMER;
         }
 
@@ -459,6 +489,36 @@ public class NotifyStrategy {
         public void setIdx(int idx) {
 
             this.idx = idx;
+        }
+        
+        public String getTime_end() {
+
+            return time_end;
+        }
+
+        public String getTime_start() {
+
+            return time_start;
+        }
+
+        public String getDownsample() {
+
+            return downsample;
+        }
+
+        public String getDay_start() {
+
+            return day_start;
+        }
+
+        public String getDay_end() {
+
+            return day_end;
+        }
+
+        public Boolean[] getWeekdayLimit() {
+
+            return weekdayLimit;
         }
 
     }

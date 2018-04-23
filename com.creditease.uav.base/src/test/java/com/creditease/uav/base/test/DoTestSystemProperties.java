@@ -23,19 +23,13 @@ package com.creditease.uav.base.test;
 import java.io.IOException;
 import java.util.Properties;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.AbstractHandler;
 
 public class DoTestSystemProperties {
 
     public static void main(String[] args) throws Exception {
 
-        Server server = new Server(8181);
+     /*   Server server = new Server(8181);
         server.setHandler(new AbstractHandler() {
 
             @Override
@@ -59,7 +53,7 @@ public class DoTestSystemProperties {
 
             }
         });
-        server.start();
+        server.start();*/
     }
 
 }

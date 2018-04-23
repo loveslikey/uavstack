@@ -20,7 +20,6 @@
 
 package com.creditease.agent;
 
-import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.net.InetAddress;
@@ -32,13 +31,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
-
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.Server;
 
 import com.creditease.agent.helpers.NetworkHelper;
 import com.creditease.agent.helpers.StringHelper;
@@ -175,13 +167,13 @@ public class SystemStarter {
         installFeatures();
         log.info(this,"Jetty is begining to start");
         //启动http服务
-        startJetty();
+        //startJetty();
         log.info(this,"Jetty  start end");
         log.info(this, "Micro-Service Computing Platform started");
     }
     
-    private  void startJetty(){
-        Properties config = this.configMgr.getConfigurations();
+   /* private  void startJetty(){
+       Properties config = this.configMgr.getConfigurations();
         String port= config.getProperty("command.jetty.port","6161");
         Server server = new Server(Integer.parseInt(port));
         server.setHandler(new org.eclipse.jetty.server.handler.AbstractHandler() {
@@ -208,7 +200,7 @@ public class SystemStarter {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
+    }*/
 
     /**
      * Sometimes the network may be 127.0.0.1 or not ready when the process starts then wait for max 30 seconds to see

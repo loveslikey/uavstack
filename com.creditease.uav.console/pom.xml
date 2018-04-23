@@ -44,31 +44,37 @@
 		<dependency>
 			<groupId>com.creditease.moniter</groupId>
 			<artifactId>com.creditease.uav.base</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.eclipse.jetty.aggregate</groupId>
+					<artifactId>jetty-all</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<dependency>
 			<groupId>com.creditease.moniter</groupId>
 			<artifactId>com.creditease.uav.httpasync</artifactId>
 		</dependency>
-		
-		 <dependency>
+
+		<dependency>
 			<groupId>javax.servlet</groupId>
 			<artifactId>javax.servlet-api</artifactId>
 			<version>3.0.1</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>commons-logging</groupId>
 			<artifactId>commons-logging</artifactId>
 			<version>1.2</version>
 		</dependency>
-		
-		<dependency> 
+
+		<dependency>
 			<groupId>aredis.sourceforge.net</groupId>
 			<artifactId>aredis-api</artifactId>
 			<version>1.4</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>commons-httpclient</groupId>
 			<artifactId>commons-httpclient</artifactId>
