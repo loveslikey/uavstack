@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -188,29 +189,35 @@ public class ReliableTaildirEventReader {
                 inode = positionObject.getLong("inode");
                 pos = positionObject.getLong("pos");
                 file = positionObject.getString("file");
-                // add line number
-                number = positionObject.getLongValue("num");
-                for (Object v : Arrays.asList(inode, pos, file)) {
-                    Preconditions.checkNotNull(v, "Detected missing value in position file. " + "inode: " + inode
-                            + ", pos: " + pos + ", path: " + file);
-                }
-                TailFile tf = tailFiles.get(inode);
-                if (tf != null && tf.updatePos(file, inode, pos, number)) {
-                    tailFiles.put(inode, tf);
+                Long currentInode = getInode(new File(file));
+                if (!currentInode.equals(inode)) {
+                    maybeReloadMap.remove(inode);
                 }
                 else {
-                    // add old tail file into memory
-                    maybeReloadMap.put(inode, new Long[] { pos, number });
-                    if (logger.isDebugEnable()) {
-                        logger.debug(this, "add old&inInterrupt file: " + file + ", inode: " + inode + ", pos: " + pos);
+                    // add line number
+                    number = positionObject.getLongValue("num");
+                    for (Object v : Arrays.asList(inode, pos, file)) {
+                        Preconditions.checkNotNull(v, "Detected missing value in position file. " + "inode: " + inode
+                                + ", pos: " + pos + ", path: " + file);
                     }
+                    TailFile tf = tailFiles.get(inode);
+                    if (tf != null && tf.updatePos(file, inode, pos, number)) {
+                        tailFiles.put(inode, tf);
+                    }
+                    else {
+                        // add old tail file into memory
+                        maybeReloadMap.put(inode, new Long[] { pos, number });
+                        if (logger.isDebugEnable()) {
+                            logger.debug(this, "add old&inInterrupt file: " + file + ", inode: " + inode + ", pos: " + pos);
+                        }
 
+                    }
                 }
             }
 
         }
         catch (FileNotFoundException e1) {
-            logger.info(this, "File not found: " + filePath + ", not updating position");
+            logger.err(this, "File not found: " + filePath + ", not updating position");
         }
         catch (IOException e) {
             logger.err(this, "Failed loading positionFile: " + filePath, e);
@@ -393,7 +400,26 @@ public class ReliableTaildirEventReader {
             }
             for (File f : files) {
                 long inode = getInode(f);
+                removeInvalidTFInode(f, inode);
                 TailFile tf = tailFiles.get(inode);
+
+                /**
+                 * 如果是刚刚开启日志归集那么跳到文件尾部进行归集
+                 */
+                Set<String> newTailFileSet = logagent.getNewTailFileSet();
+                if (newTailFileSet.contains(f.getAbsolutePath())) {
+                    newTailFileSet.remove(f.getAbsolutePath());
+                    if (tf != null && tf.getRaf() != null) {
+                        tf.getRaf().seek(f.length());
+                    }
+                    else if (tf != null) {
+                        tf.setPos(f.length());
+                    }
+                    else {
+                        skipToEnd = true;
+                    }
+                }
+
                 if (tf == null || !tf.getPath().equals(f.getAbsolutePath())) {
                     long startPos = skipToEnd ? f.length() : 0;// 第一次读取从头开始读
                     // how to get line's number ?
@@ -407,7 +433,7 @@ public class ReliableTaildirEventReader {
                     tf.setAppUrl(appurl);
                 }
                 else {
-                    boolean updated = tf.getLastUpdated() < f.lastModified();
+                    boolean updated = tf.getLastUpdated() < f.lastModified() || tf.getPos() < f.length();
                     if (updated) {
                         if (tf.getRaf() == null) {// 获取文件的读取手柄
                             tf = openFile(serverid, appid, logid, f, headers, inode, tf.getPos(), tf.getNum());
@@ -416,7 +442,7 @@ public class ReliableTaildirEventReader {
                         if (f.length() < tf.getPos()) { // 文件的长度小于上次读取的指针说明文件内容被删除了，改成从0读取
                             logger.info(this, "Pos " + tf.getPos() + " is larger than file size! "
                                     + "Restarting from pos 0, file: " + tf.getPath() + ", inode: " + inode);
-                            tf.updatePos(tf.getPath(), inode, 0, 0);
+                            tf.updatePos(tf.getPath(), inode, 0, tf.getNum());
                         }
                     }
                     tf.setNeedTail(updated);// 设置是否需要监控指标
@@ -430,6 +456,23 @@ public class ReliableTaildirEventReader {
             }
         }
         return updatedInodes;
+    }
+
+    /**
+     * @param f
+     * @param inodeCurrent
+     * @throws IOException
+     */
+    private void removeInvalidTFInode(File f, long inodeCurrent) throws IOException {
+        for (Long inodeKey : tailFiles.keySet()) {
+            TailFile tf = tailFiles.get(inodeKey);
+            if (tf.getPath().equals(f.getAbsolutePath()) && inodeKey != inodeCurrent) {
+                tailFiles.remove(inodeKey);
+                if (tf.getRaf() != null) {
+                    tf.getRaf().close();
+                }
+            }
+        }
     }
 
     public List<Long> updateTailFiles() throws IOException {
