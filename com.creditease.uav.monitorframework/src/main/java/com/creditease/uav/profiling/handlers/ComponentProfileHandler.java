@@ -698,7 +698,7 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
                 String[] paths = StringHelper.tokenizeToStringArray(springConfigLocations.get(0),
                         CONFIG_LOCATION_DELIMITERS);
                 for (String path : paths) {
-                    files.addAll(getFileLocation(webAppRoot, path));
+                    files.addAll(getFileLocation(webAppRoot, path, null));
                 }
             }
 
@@ -732,7 +732,7 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
 
                         String importFileRelativePath = importFilePathPart1 + "/" + importFilePathPart2;
 
-                        importfile.addAll(getFileLocation(webAppRoot, importFileRelativePath));
+                        importfile.addAll(getFileLocation(webAppRoot, importFileRelativePath, importFilePathPart2));
                     }
                 }
                 catch (IOException e) {
@@ -911,8 +911,10 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
 
                             Node beanClazz = processor
                                     .selectXMLNode("/beans/bean[@id='" + impl.getNodeValue() + "']/@class");
-
-                            return beanClazz.getNodeValue();
+                            
+                            if(beanClazz!=null) {                               
+                                return beanClazz.getNodeValue();
+                            } 
                         }
 
                         // step 2.3 load serviceBean|implementor/@ref
@@ -923,7 +925,9 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
                             Node beanClazz = processor
                                     .selectXMLNode("/beans/bean[@id='" + impl.getNodeValue() + "']/@class");
 
-                            return beanClazz.getNodeValue();
+                            if(beanClazz!=null) {                               
+                                return beanClazz.getNodeValue();
+                            }  
                         }
 
                         return key;
@@ -941,7 +945,8 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
          * @param filepath
          * @return
          */
-        private List<String> getFileLocation(String webAppRoot, String path) {
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+		private List<String> getFileLocation(String webAppRoot, String path, String importFilePathPart2) {
 
             List<String> absPaths = new ArrayList<String>();
             ClassLoader webappclsLoader = (ClassLoader) this.getContext().get(InterceptContext.class)
@@ -975,6 +980,20 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
 
             File location = null;
             if (resources != null) {
+            	if (importFilePathPart2 != null) {
+            		try {
+            			// spring: if resource belongs to ClassPathResource or its subclass, try loading "org.springframework.core.io.ClassPathResource" and get resources again,
+            			// in case that files cannot be found in relative path "path". 
+            			Class cpRes = webappclsLoader.loadClass("org.springframework.core.io.ClassPathResource");
+            			if(cpRes != null && cpRes.isAssignableFrom(resources[0].getClass())) {
+            				resources = (Object[]) ReflectionHelper.invoke(SPRING_ResourcePatternResolver_CLASSNAME, resourceloader,
+            						"getResources", new Class[] { String.class }, new String[] { importFilePathPart2 }, webappclsLoader);
+            			}
+            		}
+            		catch (ClassNotFoundException e1) {
+            			// ignore
+            		}
+            	}
                 for (Object resource : resources) {
                     try {
                         location = (File) ReflectionHelper.invoke(SPRING_RESOURCE_CLASSNAME, resource, "getFile", null,
@@ -1242,6 +1261,7 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
         @Override
         protected List<String> getDescriptorFileLocations(String webAppRoot) {
 
+            List<String> retFiles = new ArrayList<String>();
             List<String> files = new ArrayList<String>();
 
             Document doc = null;
@@ -1249,43 +1269,91 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
 
             String webAppClasspath = webAppRoot + File.separator + "WEB-INF" + File.separator + "classes"
                     + File.separator;
-            String fileName = "struts.xml";
-            File file = new File(webAppClasspath + fileName);
+            String config = parseFilterParam(webAppRoot);
+            if (!StringHelper.isEmpty(config)) {
 
-            if (!file.exists()) {
-                return files;
-            }
+                String[] fileNames = config.split(",");
 
-            files.add(webAppClasspath + fileName);
-
-            try {
-                doc = this.getDocumentBuilder().parse(file);
-                nodes = (NodeList) this.xpath.evaluate("/struts/include/@file", doc, XPathConstants.NODESET);
-            }
-            catch (IOException e) {
-                if (this.logger.isLogEnabled()) {
-                    this.logger.warn("Load DescriptorFile[" + file.getPath() + "] FAILs.", e);
-                }
-            }
-            catch (SAXException e) {
-                if (this.logger.isLogEnabled()) {
-                    this.logger.warn("Load DescriptorFile[" + file.getPath() + "] FAILs.", e);
-                }
-            }
-            catch (XPathExpressionException e) {
-                if (this.logger.isLogEnabled()) {
-                    this.logger.warn("Load DescriptorFile[" + file.getPath() + "] FAILs.", e);
+                for (String fileName : fileNames) {
+                    files.add(webAppClasspath + fileName);
                 }
             }
 
-            if (nodes != null) {
-                for (int i = 0; i < nodes.getLength(); i++) {
-                    Node node = nodes.item(i);
-                    files.add(webAppClasspath + node.getTextContent());
+            files.add(webAppClasspath + "struts.xml");
+
+            for (String fileName : files) {
+
+                File file = new File(fileName);
+
+                if (!file.exists()) {
+                    continue;
+                }
+
+                retFiles.add(fileName);
+
+                try {
+                    doc = this.getDocumentBuilder().parse(file);
+                    nodes = (NodeList) this.xpath.evaluate("/struts/include/@file", doc, XPathConstants.NODESET);
+                }
+                catch (IOException e) {
+                    if (this.logger.isLogEnabled()) {
+                        this.logger.warn("Load DescriptorFile[" + file.getPath() + "] FAILs.", e);
+                    }
+                }
+                catch (SAXException e) {
+                    if (this.logger.isLogEnabled()) {
+                        this.logger.warn("Load DescriptorFile[" + file.getPath() + "] FAILs.", e);
+                    }
+                }
+                catch (XPathExpressionException e) {
+                    if (this.logger.isLogEnabled()) {
+                        this.logger.warn("Load DescriptorFile[" + file.getPath() + "] FAILs.", e);
+                    }
+                }
+
+                if (nodes != null) {
+                    for (int i = 0; i < nodes.getLength(); i++) {
+                        Node node = nodes.item(i);
+                        retFiles.add(webAppClasspath + node.getTextContent());
+                    }
                 }
             }
 
-            return files;
+            return retFiles;
+        }
+
+        private String parseFilterParam(String webAppRoot) {
+
+            String[] xpaths = new String[] {
+                    "/web-app/filter[filter-class='org.apache.struts2.dispatcher.filter.StrutsPrepareAndExecuteFilter']/init-param[param-name='config']/param-value",
+                    "/web-app/filter[filter-class='org.apache.struts2.dispatcher.FilterDispatcher']/init-param[param-name='config']/param-value" };
+
+            WebXmlProcessor wxp = this.getContext().get(WebXmlProcessor.class);
+
+            final String[] configs = new String[] { null };
+
+            for (String xpath : xpaths) {
+
+                wxp.parse(webAppRoot, xpath, new XMLParseHandler() {
+
+                    @Override
+                    public boolean parse(DescriptorCollector dc, Node node) {
+
+                        if (node != null) {
+                            configs[0] = node.getTextContent();
+                            return true;
+                        }
+
+                        return false;
+                    }
+                }, XMLNodeType.ELEMENT_NODE);
+
+                if (!StringHelper.isEmpty(configs[0])) {
+                    break;
+                }
+            }
+
+            return configs[0];
         }
 
         @Override
@@ -2669,7 +2737,9 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
 
             Map<String, Object> annoWebService = (Map<String, Object>) classAnnoInfo.get("javax.jws.WebService");
 
-            classPath = (String) annoWebService.get("serviceName");
+            if (null != annoWebService) {
+                classPath = (String) annoWebService.get("serviceName");
+            }
 
             if (StringHelper.isEmpty(classPath)) {
 
@@ -2856,7 +2926,10 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
         }
 
         Class<?> annoClass = annoAvailableClasses.get(componentClassName);
-
+        if (null == annoClass) {
+            return;
+        } 
+        
         List<String> coms = fcs.getNamesOfClassesWithAnnotation(annoClass);
 
         if (null == coms || coms.isEmpty()) {
@@ -2932,8 +3005,8 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
         inst.setValue("webapproot", webAppRoot);
         // get the app Http URL
         inst.setValue("appurl", getServiceURI(contextpath));
-        // get customized metrics
-        // getCustomizedMetrics(inst);
+        // get the vender
+        inst.setValue("vender", UAVServer.instance().getServerInfo(CaptureConstants.INFO_APPSERVER_VENDOR));
         // get app group
         getAppGroup(inst);
     }
@@ -2950,47 +3023,6 @@ public class ComponentProfileHandler extends BaseComponent implements ProfileHan
         inst.setValue("appgroup", JAppGroup);
     }
 
-    // /**
-    // * getCustomizedMetrics
-    // *
-    // * @param inst
-    // */
-    // private void getCustomizedMetrics(ProfileElementInstance inst) {
-    //
-    // @SuppressWarnings("rawtypes")
-    // Map<String, Map> metrics = new HashMap<String, Map>();
-    //
-    // Enumeration<?> enumeration = System.getProperties().propertyNames();
-    //
-    // while (enumeration.hasMoreElements()) {
-    //
-    // String name = (String) enumeration.nextElement();
-    //
-    // int moIndex = name.indexOf("mo@");
-    //
-    // if (moIndex != 0) {
-    // continue;
-    // }
-    //
-    // try {
-    // String[] metricsArray = name.split("@");
-    //
-    // // add metricName to customizedMetrics
-    // if (metricsArray.length == 3) {
-    // metrics.put(metricsArray[1], JSONHelper.toObject(metricsArray[2], Map.class));
-    // }
-    // else {
-    // metrics.put(metricsArray[1], Collections.emptyMap());
-    // }
-    // }
-    // catch (Exception e) {
-    // logger.error("Parsing Custom Metrics[" + name + "] FAIL.", e);
-    // continue;
-    // }
-    // }
-    //
-    // inst.setValue("appmetrics", JSONHelper.toString(metrics));
-    // }
 
     private String getServiceURI(String contextpath) {
 

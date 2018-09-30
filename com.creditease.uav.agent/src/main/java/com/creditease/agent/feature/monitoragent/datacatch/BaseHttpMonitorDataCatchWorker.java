@@ -27,6 +27,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -75,13 +76,18 @@ public abstract class BaseHttpMonitorDataCatchWorker extends BaseMonitorDataCatc
         }
     }
 
-    protected HttpAsyncClient client;
+    private HttpAsyncClient client;
+
+    private long profileHBTimeout;
 
     public BaseHttpMonitorDataCatchWorker(String cName, String feature, JVMAgentInfo appServerInfo,
             BaseDetector detector) {
+
         super(cName, feature, appServerInfo, detector);
 
-        client = HttpAsyncClientFactory.build(2, 5, 2, 2, 2);
+        String profileHBTimeoutStr = this.getConfigManager().getFeatureConfiguration(feature,
+                "detector.profilehbtimeout");
+        profileHBTimeout = StringHelper.isEmpty(profileHBTimeoutStr) ? 15000 : Long.parseLong(profileHBTimeoutStr);
     }
 
     @Override
@@ -93,9 +99,11 @@ public abstract class BaseHttpMonitorDataCatchWorker extends BaseMonitorDataCatc
 
             long timeFlag = (System.currentTimeMillis() / 10) * 10;
 
+            String pid = this.cName.substring("MO-".length() > this.cName.length() ? 0 : 3);
             // get all monitor's MBean
             MonitorDataFrame mdf = new MonitorDataFrame(this.getWorkerId(), "M", timeFlag);
-
+            mdf.addExt("pid", pid);
+            
             needProcessCheck = doCaptureMonitorData(timeFlag, mdf);
 
             // if needProcessCheck is still true, need see if the appserver is still alive
@@ -114,9 +122,22 @@ public abstract class BaseHttpMonitorDataCatchWorker extends BaseMonitorDataCatc
                 }
             }
 
+            // up to date SystemProperties
+            String getSysUrl = this.appServerInfo.getJVMAccessURL() + "jvm?action=getSystemPro";
+            String data = accessData(getSysUrl, null);
+            @SuppressWarnings("unchecked")
+            Map<String, String> p = JSONHelper.toObject(data, Map.class);
+
+            Properties sysPro = new Properties();
+            if (!p.isEmpty()) {
+                sysPro.putAll(p);
+                this.appServerInfo.setSystemProperties(sysPro);
+            }
+            
             // get all profile's MBean
             MonitorDataFrame pmdf = new MonitorDataFrame(this.getWorkerId(), "P", timeFlag);
-
+            pmdf.addExt("pid", pid);
+            
             needProcessCheck = doCaptureProfileData(timeFlag, pmdf);
 
             // if needProcessCheck is still true, need see if the appserver is still alive
@@ -144,6 +165,9 @@ public abstract class BaseHttpMonitorDataCatchWorker extends BaseMonitorDataCatc
         catch (IOException e) {
             // if connect fails, try process detecting
             doHealthReaction();
+        }
+        catch (Exception e) {
+            log.err(this, "up to date SystemProperties failed", e);
         }
     }
 
@@ -203,7 +227,7 @@ public abstract class BaseHttpMonitorDataCatchWorker extends BaseMonitorDataCatc
              * this data is old, but need for profile heartbeat even the if Update = false, but we will still pass the
              * profile data as a heartbeat for profiledata the heart beat interval = 1 min
              */
-            else if (isUpdate == false && curTime - state.getProfileTimestamp() > 60000) {
+            else if (isUpdate == false && curTime - state.getProfileTimestamp() > profileHBTimeout) {
                 isRefreshTimestamp = true;
                 pmdf.setTag("P:HB");
             }
@@ -237,16 +261,7 @@ public abstract class BaseHttpMonitorDataCatchWorker extends BaseMonitorDataCatc
              * 
              * NOTE: if there is no special appgroup, use MonitorAgent appgroup
              */
-            String uavMAAppGroup = System.getProperty("JAppGroup");
-
-            String appGroup = this.appServerInfo.getSystemProperties().getProperty("JAppGroup");
-
-            if (!StringHelper.isEmpty(appGroup)) {
-                webapp.put("appgroup", appGroup);
-            }
-            else if (!StringHelper.isEmpty(uavMAAppGroup)) {
-                webapp.put("appgroup", uavMAAppGroup);
-            }
+            webapp.put("appgroup", this.getAppGroup());
 
             /**
              * 【2】自定义指标
@@ -384,10 +399,10 @@ public abstract class BaseHttpMonitorDataCatchWorker extends BaseMonitorDataCatc
         };
 
         if (postData == null) {
-            client.doAsyncHttpGet(serviceURL, callback);
+            getHttpAsyncClient().doAsyncHttpGet(serviceURL, callback);
         }
         else {
-            client.doAsyncHttpPost(serviceURL, postData, callback);
+            getHttpAsyncClient().doAsyncHttpPost(serviceURL, postData, callback);
         }
 
         // timeout for response
@@ -437,4 +452,29 @@ public abstract class BaseHttpMonitorDataCatchWorker extends BaseMonitorDataCatc
         return 1;
     }
 
+    @Override
+    public void cancel() {
+
+        super.cancel();
+
+        if (client != null) {
+            client.shutdown();
+        }
+    }
+
+    /**
+     * get HttpAsyncClient unsafe
+     * 
+     * @return HttpAsyncClient
+     */
+    private HttpAsyncClient getHttpAsyncClient() {
+
+        if (client != null) {
+            return client;
+        }
+
+        client = HttpAsyncClientFactory.build(2, 5, 2000, 2000, 2000);
+
+        return client;
+    }
 }

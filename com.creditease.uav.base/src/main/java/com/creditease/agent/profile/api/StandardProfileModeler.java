@@ -1007,6 +1007,10 @@ public class StandardProfileModeler extends AbstractBaseAction {
             Map<String, Object> compDesInfo = (Map<String, Object>) compInfo.get("anno");
 
             Map<String, Object> annoWebService = (Map<String, Object>) compDesInfo.get("javax.ws.rs.Path");
+            
+            if (annoWebService == null) {
+                continue;
+            }
 
             String resourceClassRelativePath = (String) annoWebService.get("value");
 
@@ -1136,7 +1140,11 @@ public class StandardProfileModeler extends AbstractBaseAction {
 
                 Map<String, Object> annoWebService = (Map<String, Object>) compDesInfo.get("javax.jws.WebService");
 
-                String serviceName = (String) annoWebService.get("serviceName");
+                String serviceName = null;
+
+                if (null != annoWebService) {
+                    serviceName = (String) annoWebService.get("serviceName");
+                }
 
                 if (StringHelper.isEmpty(serviceName)) {
 

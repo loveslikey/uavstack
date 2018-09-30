@@ -20,20 +20,21 @@
 
 package com.creditease.agent.feature.procdetectagent;
 
+import java.text.DecimalFormat;
+import java.util.HashMap;
+
 import com.creditease.agent.helpers.JSONHelper;
 import com.creditease.agent.helpers.JVMToolHelper;
 import com.creditease.agent.helpers.NetworkHelper;
 import com.creditease.agent.helpers.RuntimeHelper;
 import com.creditease.agent.spi.AbstractTimerWork;
 import com.creditease.agent.spi.AgentFeatureComponent;
+
 import jpcap.JpcapCaptor;
 import jpcap.NetworkInterface;
 import jpcap.NetworkInterfaceAddress;
 import jpcap.packet.Packet;
 import jpcap.packet.TCPPacket;
-
-import java.text.DecimalFormat;
-import java.util.HashMap;
 
 public class NetworkIoDetector extends AbstractTimerWork {
 
@@ -60,6 +61,7 @@ public class NetworkIoDetector extends AbstractTimerWork {
         // windows
         if (JVMToolHelper.isWindows()) {
 
+            JpcapCaptor jpcap = null;
             try {
                 String Local_ip = "/" + ip;
                 // 存端口流量
@@ -71,6 +73,9 @@ public class NetworkIoDetector extends AbstractTimerWork {
                 }
                 // 获取网卡设备列表
                 NetworkInterface[] devices = JpcapCaptor.getDeviceList();
+                if (devices == null || devices.length == 0) {
+                    return;
+                }
                 // 确定网卡设备接口
                 boolean true_devices = false;
                 int i = 0;
@@ -88,7 +93,7 @@ public class NetworkIoDetector extends AbstractTimerWork {
                 }
                 NetworkInterface nc = devices[i];
                 // 打开网卡设备 ，创建某个卡口上的抓取对象,最大为65535个
-                JpcapCaptor jpcap = JpcapCaptor.openDevice(nc, 65535, false, 20);
+                jpcap = JpcapCaptor.openDevice(nc, 65535, false, 20);
                 jpcap.setFilter("tcp", true);// 设置过滤器
 
                 // 抓包 统计流量
@@ -98,6 +103,12 @@ public class NetworkIoDetector extends AbstractTimerWork {
             catch (Exception e) {
                 log.err(this, "NetworkIo Monitor runs FAIL.", e);
             }
+            finally {
+                if (jpcap != null) {
+                    // 关闭
+                    jpcap.close();
+                }
+             }
 
         }
 

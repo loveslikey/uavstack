@@ -48,10 +48,18 @@ import com.creditease.uav.elasticsearch.client.ESClient;
 public class HMNewLogIndexMgr extends AbstractComponent {
 
     private static final String AppLog = "applog_";
+    /**
+     * Strings longer than the ignore_above setting will not be indexed This option is also useful for protecting
+     * against Lucene’s term byte-length limit of 32766 The value for ignore_above is the character count, but Lucene 
+     * counts bytes. If you use UTF-8 text with many non-ASCII characters, you may want to set the limit to 32766 / 3 = 
+     * 10922 since UTF-8 characters may occupy at most 3 bytes
+     */
+    private static final int IGNORE_ABOVE = 32766 / 3;
 
     private ESClient client;
 
     public HMNewLogIndexMgr(String cName, String feature) {
+
         super(cName, feature);
 
         client = (ESClient) this.getConfigManager().getComponent(this.feature, "ESClient");
@@ -141,11 +149,16 @@ public class HMNewLogIndexMgr extends AbstractComponent {
                 return currentIndex;
             }
 
-            client.creatIndex(currentIndex);
-            Map<String, Object> set = new HashMap<String, Object>();
-            set.put("index.number_of_shards", 2);
-            set.put("index.number_of_replicas", 0);
-            client.updateIndexSetting(currentIndex, set);
+            Map<String, String> set = new HashMap<String, String>();
+            set.put("index.number_of_shards", "2");
+            set.put("index.number_of_replicas", "0");
+
+            try {
+                client.creatIndex(currentIndex, null, set, null);
+            }
+            catch (Exception e) {
+                log.err(this, "create ES Index FAIL: ", e);
+            }
 
             String sappid = formatAppid(appid);
 
@@ -188,8 +201,8 @@ public class HMNewLogIndexMgr extends AbstractComponent {
             // 设置
             Map<String, Object> sfields = new HashMap<>();
 
-            sfields.put("type", "string");
-            sfields.put("index", "not_analyzed");
+            sfields.put("type", "keyword");
+            sfields.put("ignore_above", IGNORE_ABOVE);
 
             mapping.put("ipport", sfields);
 

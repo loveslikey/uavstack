@@ -929,6 +929,10 @@ public class DateTimeHelper {
         }
     };
 
+    @Deprecated
+    /**
+     * 线程不安全，性能消耗大，不建议使用
+     */
     public static Date convertToDate(String input) {
 
         Date date = null;
@@ -995,5 +999,14 @@ public class DateTimeHelper {
         now.add(Calendar.YEAR, -1);
 
         return now.getTime();
+    }
+    
+    public static int getWeekday(Date date) {
+        
+        Calendar cal = Calendar.getInstance();
+        
+        cal.setTime(date);
+
+        return cal.get(Calendar.DAY_OF_WEEK) - 1;
     }
 }

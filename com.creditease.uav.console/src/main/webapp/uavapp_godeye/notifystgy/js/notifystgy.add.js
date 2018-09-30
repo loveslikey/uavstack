@@ -124,6 +124,7 @@ function saveNotify(checkIsExist){
 		 */
 		//校验
 		var stgyExpHtmlObjs = document.getElementsByName("stgy_exp_html"),stgyExpCheck=true;
+		var stgyConvergences = document.getElementsByName("stgy_convergence_html");
 		if(stgyExpHtmlObjs.length==0 && mName != "procCrash"){
 			$("#addNotifyErrMSG").text("触发策略不能为空");
 			return false;
@@ -140,7 +141,7 @@ function saveNotify(checkIsExist){
 		}
 
 		//赋值
-		var relations=[],relationsHtmls = [];
+		var relations=[],relationsHtmls = [],convergences=[];
 		$.each(stgyExpHtmlObjs,function(index,obj){
 			var relation = obj.innerText;
 			var resultHtml = obj.innerHTML;
@@ -152,8 +153,8 @@ function saveNotify(checkIsExist){
 			
 			relations[index]= relation;//赋值表达式
 			relationsHtmls[index]= resultHtml;//赋值用户操作html
+			convergences[index] = stgyConvergences[index].innerText;
 		});
-		
 		/**
 		 * 策略处理 end
 		 */
@@ -164,12 +165,61 @@ function saveNotify(checkIsExist){
 		 */
 		var instancesArray = new Array();
 		var instancesValues = instances.split(",");
+		
+		/**
+		 * 解决jdbc://orcale预警策略配置，由于画像数据带","导致预警策略instances保存不正确的问题
+		 * 比如:127.0.0.1:8080#smsgateway#jdbc:oracle://localhost1:1521,localhost2:1521/username会保存为2个instances
+		 * 一个是127.0.0.1:8080#smsgateway#jdbc:oracle://localhost1:1521
+		 * 一个是localhost2:1521/username
+		 * 
+		 * 所以需要针对客户端url中带","进行特殊处理，如果通过","分割后的instances不是已客户端协议开头，则需要追溯到上一个instances进行追加，
+		 * 如果所有的instances都不是已客户端协议开头，则保留原逻辑进行保存
+		 */
+		if(fName.indexOf("client")==0){
+			// 客户端支持的"协议"
+			var protocol={
+					"http":"http",
+					"https":"https",
+					"jdbc":"jdbc",
+					"mq":"mq",
+					"redis":"redis",
+					"elasticsearch":"elasticsearch",
+					"mongo":"mongo"
+					};
+			
+			var invalidIndexs = new Array();
+			
+			$.each(instancesValues,function(index,value){
+				value = value.trim();
+				var valueArr = value.split("#");
+				var client = valueArr[valueArr.length-1];
+				var p = client.split(":")[0];
+				if(protocol[p]==undefined){
+					invalidIndexs.push(index);
+				}
+			});
+			
+			if(invalidIndexs.length>0 && invalidIndexs.length!=instancesValues.length){
+				$.each(invalidIndexs,function(index,value){
+					var ins = instancesValues[value-1];
+					var valueArr = ins.split("#");
+					var client = valueArr[valueArr.length-1];
+					var p = client.split(":")[0];
+					if(ins!=undefined && protocol[p]!=undefined){
+						instancesValues[value] = ins+","+instancesValues[value];
+						instancesValues[value-1] = "";
+					}
+				});
+			}
+		}
+		
 		$.each(instancesValues,function(index,value){
-			value = $.trim(value);
+			value = value.trim();
 			if(value!=""){
 				instancesArray.push(value);
 			}
 		});
+		
 		if(!instancesArray || instancesArray.length==0){
 			instances = [];
 		}else{
@@ -187,7 +237,8 @@ function saveNotify(checkIsExist){
 				"action":actions,
 				"owner":owner,
 				"relations":relations,
-				"relationsHtmls":relationsHtmls
+				"relationsHtmls":relationsHtmls,
+				"convergences":convergences
 		}
 		commitInfo[fName]=result;
 		saveKey = fName;
